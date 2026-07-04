@@ -1254,7 +1254,18 @@ def configure_loggers(
         logging.info("WandBLogger has been set up")
 
     if create_mlflow_logger:
-        mlflow_logger = MLFlowLogger(run_name=version, **mlflow_kwargs)
+        if mlflow_kwargs is None:
+            mlflow_kwargs = {}
+        elif OmegaConf.is_config(mlflow_kwargs):
+            mlflow_kwargs = OmegaConf.to_container(mlflow_kwargs, resolve=True)
+        else:
+            mlflow_kwargs = dict(mlflow_kwargs)
+
+        run_name = mlflow_kwargs.pop("run_name", None)
+        if run_name is None:
+            run_name = version
+
+        mlflow_logger = MLFlowLogger(run_name=run_name, **mlflow_kwargs)
 
         logger_list.append(mlflow_logger)
         logging.info("MLFlowLogger has been set up")

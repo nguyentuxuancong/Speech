@@ -16,7 +16,7 @@ import math
 import re
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import lightning.pytorch as pl
 import pytest
@@ -34,8 +34,10 @@ from nemo.utils.exp_manager import (
     CheckpointMisconfigurationError,
     LoggerMisconfigurationError,
     NotFoundError,
+    configure_loggers,
     exp_manager,
 )
+from nemo.utils.loggers import MLFlowParams
 
 
 class MyTestOptimizer(torch.optim.Optimizer):
@@ -207,6 +209,45 @@ class TestExpManager:
             },
         )
         assert isinstance(test_trainer.logger, pl.loggers.WandbLogger)
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        ("run_name", "expected_run_name"),
+        [
+            (None, "version_0"),
+            ("custom_run", "custom_run"),
+        ],
+    )
+    def test_mlflow_logger_run_name(self, run_name, expected_run_name):
+        """Test that MLFlowLogger receives one run_name and honors explicit overrides."""
+        trainer = Mock()
+        mlflow_logger_kwargs = OmegaConf.structured(MLFlowParams(run_name=run_name))
+
+        with patch("nemo.utils.exp_manager.MLFlowLogger") as mock_mlflow_logger:
+            configure_loggers(
+                trainer=trainer,
+                exp_dir=".",
+                log_dir=".",
+                name="default",
+                version="version_0",
+                checkpoint_callback_params={},
+                create_tensorboard_logger=False,
+                summary_writer_kwargs={},
+                create_wandb_logger=False,
+                wandb_kwargs={},
+                create_mlflow_logger=True,
+                mlflow_kwargs=mlflow_logger_kwargs,
+                create_dllogger_logger=False,
+                dllogger_kwargs={},
+                create_clearml_logger=False,
+                clearml_kwargs={},
+                create_neptune_logger=False,
+                neptune_kwargs={},
+            )
+
+        mock_mlflow_logger.assert_called_once()
+        assert mock_mlflow_logger.call_args.kwargs["run_name"] == expected_run_name
+        assert mlflow_logger_kwargs.run_name == run_name
 
     @pytest.mark.unit
     def test_trainer_neptune_logger(self, tmp_path):
